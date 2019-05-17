@@ -1,14 +1,14 @@
 package provider
 
 import (
-	"esale-issues/config"
 	"log"
+	"zlp-demo-golang/config"
 
 	"github.com/jinzhu/gorm"
 )
 
 func NewDB() (*gorm.DB, error) {
-	db, err := gorm.Open("mysql", config.String("db.connstring"))
+	db, err := gorm.Open("mysql", config.Get("db.connstring"))
 	if err != nil {
 		log.Println(err)
 		return nil, err

@@ -1,6 +1,6 @@
 # Demo tích hợp ZaloPay cho Golang
 
-Demo tích hợp các API của ZaloPay cho golang (version go1.11.1 linux/amd64)
+Demo tích hợp các API của ZaloPay cho golang
 
 ## Cài đặt
 
@@ -8,17 +8,17 @@ Demo tích hợp các API của ZaloPay cho golang (version go1.11.1 linux/amd64
 2. [ngrok](https://ngrok.com/download)
 3. [go](https://golang.org/dl/)
 4. [mysql](https://www.mysql.com/downloads/)
-5. Clone project này về và Install dependencies
+5. Clone project này về và cài đặt các dependencies
 
 ```
 git clone https://github.com/tiendung1510/zlp-demo-golang
 
 cd zlp-demo-golang
 
-go install
+go get
 ```
 
-6. Tạo một database mới trong mysql và thay đổi connection string trong `config.json`
+6. Tạo một database mới (`utf8_unicode_ci`) trong mysql và thay đổi connection string trong `config.json`
 
 ```json
 {
