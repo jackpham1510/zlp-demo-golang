@@ -18,7 +18,7 @@ cd zlp-demo-golang
 go install
 ```
 
-5. Tạo một database mới trong mysql và thay đổi connection string trong `config.json`
+6. Tạo một database mới trong mysql và thay đổi connection string trong `config.json`
 
 ```json
 {
