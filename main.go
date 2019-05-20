@@ -71,7 +71,6 @@ func main() {
 
 	mux.HandleFunc("/api/getrefundstatus", func(w http.ResponseWriter, r *server.Request) string {
 		mrefundid := r.FormValue("mrefundid")
-
 		return zalopay.GetRefundStatus(mrefundid)
 	})
 

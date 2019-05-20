@@ -93,7 +93,7 @@ func CreateOrder(params map[string]string) string {
 	order["bankcode"] = "zalopayapp"
 	order["mac"] = common.Crypto.Mac.CreateOrder(order)
 
-	result := common.Http.PostForm(config.Get("createorder"), order)
+	result := common.Http.PostForm(config.Get("api.createorder"), order)
 	return common.JSON.Add(result, "apptransid", order["apptransid"])
 }
 
