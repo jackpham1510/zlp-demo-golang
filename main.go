@@ -65,8 +65,7 @@ func main() {
 	})
 
 	mux.HandleFunc("/api/refund", func(w http.ResponseWriter, r *server.Request) string {
-		postData := r.PostData
-		return zalopay.Refund(postData["zptransid"], postData["amount"], postData["description"])
+		return zalopay.Refund(r.PostData)
 	})
 
 	mux.HandleFunc("/api/getrefundstatus", func(w http.ResponseWriter, r *server.Request) string {

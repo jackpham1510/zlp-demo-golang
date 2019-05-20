@@ -127,12 +127,12 @@ func GetOrderStatus(apptransid string) string {
 	return util.Http.PostForm(config.Get("api.getorderstatus"), params)
 }
 
-func Refund(zptransid, amount, description string) string {
+func Refund(params map[string]string) string {
 	refundReq := make(map[string]string)
 	refundReq["appid"] = config.Get("appid")
-	refundReq["zptransid"] = zptransid
-	refundReq["amount"] = amount
-	refundReq["description"] = description
+	refundReq["zptransid"] = params["zptransid"]
+	refundReq["amount"] = params["amount"]
+	refundReq["description"] = params["description"]
 	refundReq["timestamp"] = util.GetTimestamp().String()
 	refundReq["mrefundid"] = GenTransID()
 	refundReq["mac"] = Crypto.Mac.Refund(refundReq)
