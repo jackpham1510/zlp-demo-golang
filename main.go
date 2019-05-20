@@ -1,153 +1,85 @@
 package main
 
 import (
-	"context"
-	"zlp-demo-golang/common"
-	"zlp-demo-golang/models"
-	"zlp-demo-golang/respository"
-	"zlp-demo-golang/ws"
-	"zlp-demo-golang/zalopay"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"log"
 	"net/http"
 	"strconv"
+	"zlp-demo-golang/models"
+	"zlp-demo-golang/respository"
+	"zlp-demo-golang/server"
+	"zlp-demo-golang/ws"
+	"zlp-demo-golang/zalopay"
 
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/rs/cors"
 	"github.com/tidwall/gjson"
 )
 
-type handlerFunc func(w http.ResponseWriter, r *http.Request) string
-
-type keyType string
-
-var postDataCtxKey = keyType("data")
-
-func withMiddlewares(handler handlerFunc) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		var requestData interface{}
-		if r.Method == http.MethodGet {
-			r.ParseForm()
-			requestData = r.Form
-		} else {
-			data := common.JSON.ParseReader(r.Body)
-			ctx := context.WithValue(r.Context(), postDataCtxKey, data)
-			r = r.WithContext(ctx)
-			requestData = data
-		}
-		log.Printf("[Request][%s][%s][%s] %+v", r.Method, r.Host, r.URL, requestData)
-		resp := handler(w, r)
-		log.Printf("[Response][%s][%s][%s] %+v", r.Method, r.Host, r.URL, resp)
-	}
-}
-
-func logError(err error) {
-	if err != nil {
-		panic(err)
-	}
-}
-
-var publicURL string
-var embeddata string
-
-/*
-	Dùng ngrok tạo Public URL để nhận được callback (*).
-	(*) ở backend app 553 khi nhận callback từ ZaloPay mà embeddata là json có chứa:
-	{
-		"forward_callback": "địa chỉ ngrok public khi chạy lệnh ngrok http <port>",
-		...
-	}
-	thì app sẽ tự động forward callback tới địa chỉ ngrok này.
-*/
-func init() {
-	// Lấy thông tin ngrok
-	res, err := http.Get("http://localhost:4040/api/tunnels")
-	logError(err)
-	body, err := ioutil.ReadAll(res.Body)
-	logError(err)
-	data := string(body)
-	publicURL = gjson.Get(data, "tunnels.0.public_url").String()
-	embeddataBytes, _ := json.Marshal(map[string]interface{}{
-		"forward_callback": publicURL + "/callback",
-	})
-	embeddata = string(embeddataBytes)
-	log.Printf("[Public_url] %s", publicURL)
-}
-
 func main() {
 	models.InitModels()
-	mux := http.NewServeMux()
+	mux := server.NewServer()
 	hub := ws.NewHub()
 
-	mux.HandleFunc("/subscribe", withMiddlewares(func(w http.ResponseWriter, r *http.Request) string {
+	mux.HandleFunc("/subscribe", func(w http.ResponseWriter, r *server.Request) string {
 		apptransid := r.FormValue("apptransid")
-		hub.Add(apptransid, w, r)
+		hub.Add(apptransid, w, r.Request)
 		return ""
-	}))
+	})
 
-	mux.HandleFunc("/result", withMiddlewares(func(w http.ResponseWriter, r *http.Request) string {
-		queryString := r.Form.Encode()
-		fmt.Fprint(w, queryString)
-		return queryString
-	}))
+	mux.HandleFunc("/callback", func(w http.ResponseWriter, r *server.Request) string {
+		cbdata := r.PostData
+		result := zalopay.VerifyCallback(cbdata)
 
-	mux.HandleFunc("/callback", withMiddlewares(func(w http.ResponseWriter, r *http.Request) string {
-		cbdata := r.Context().Value(postDataCtxKey).(map[string]string)
-		result := zalopay.HandleCallback(cbdata, hub)
+		if result.Returncode != -1 {
+			data := cbdata["data"]
+
+			apptransid := gjson.Get(data, "apptransid").String()
+			cbdataStr, _ := json.Marshal(cbdata)
+
+			// Notify to client
+			hub.Write(apptransid, string(cbdataStr))
+
+			// Save order history
+			go respository.OrderRespository.SaveOrder(data)
+		}
 
 		resultJSONBytes, _ := json.Marshal(result)
 		resultJSON := string(resultJSONBytes)
 
-		fmt.Fprint(w, resultJSON)
-
 		return resultJSON
-	}))
+	})
 
-	mux.HandleFunc("/api/createorder", withMiddlewares(func(w http.ResponseWriter, r *http.Request) string {
+	mux.HandleFunc("/api/createorder", func(w http.ResponseWriter, r *server.Request) string {
 		orderType := r.FormValue("ordertype")
 
-		if orderType != zalopay.CREATEORDER && orderType != zalopay.GATEWAY && orderType != zalopay.QUICKPAY {
-			fmt.Fprint(w, "{\"error\": true}")
+		switch orderType {
+		case "gateway":
+			return zalopay.Gateway(r.PostData)
+		case "quickpay":
+			return zalopay.QuickPay(r.PostData)
+		default:
+			return zalopay.CreateOrder(r.PostData)
 		}
+	})
 
-		params := r.Context().Value(postDataCtxKey).(map[string]string)
-		params["embeddata"] = embeddata
+	mux.HandleFunc("/api/refund", func(w http.ResponseWriter, r *server.Request) string {
+		postData := r.PostData
+		return zalopay.Refund(postData["zptransid"], postData["amount"], postData["description"])
+	})
 
-		res := zalopay.CreateOrder(orderType, params)
-		fmt.Fprint(w, res)
-
-		return res
-	}))
-
-	mux.HandleFunc("/api/refund", withMiddlewares(func(w http.ResponseWriter, r *http.Request) string {
-		postData := r.Context().Value(postDataCtxKey).(map[string]string)
-
-		res := zalopay.Refund(postData["zptransid"], postData["amount"], postData["description"])
-		fmt.Fprint(w, res)
-
-		return res
-	}))
-
-	mux.HandleFunc("/api/getrefundstatus", withMiddlewares(func(w http.ResponseWriter, r *http.Request) string {
+	mux.HandleFunc("/api/getrefundstatus", func(w http.ResponseWriter, r *server.Request) string {
 		mrefundid := r.FormValue("mrefundid")
 
-		res := zalopay.GetRefundStatus(mrefundid)
-		fmt.Fprint(w, res)
+		return zalopay.GetRefundStatus(mrefundid)
+	})
 
-		return res
-	}))
+	mux.HandleFunc("/api/getbanklist", func(w http.ResponseWriter, r *server.Request) string {
+		return zalopay.GetBankList()
+	})
 
-	mux.HandleFunc("/api/getbanklist", withMiddlewares(func(w http.ResponseWriter, r *http.Request) string {
-		res := zalopay.GetBankList()
-
-		fmt.Fprint(w, res)
-
-		return res
-	}))
-
-	mux.HandleFunc("/api/gethistory", withMiddlewares(func(w http.ResponseWriter, r *http.Request) string {
+	mux.HandleFunc("/api/gethistory", func(w http.ResponseWriter, r *server.Request) string {
 		var result string
 		var err error
 
@@ -170,9 +102,8 @@ func main() {
 			result = string(ordersJSON)
 		}
 
-		fmt.Fprint(w, result)
 		return result
-	}))
+	})
 
 	port := 1789
 

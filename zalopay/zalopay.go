@@ -2,66 +2,76 @@ package zalopay
 
 import (
 	"crypto/rsa"
-	"zlp-demo-golang/common"
-	"zlp-demo-golang/config"
-	"zlp-demo-golang/respository"
-	"zlp-demo-golang/ws"
 	"encoding/base64"
 	"encoding/json"
+	"fmt"
 	"log"
 	"os"
+	"time"
+	"zlp-demo-golang/common"
+	"zlp-demo-golang/config"
 
-	"github.com/tidwall/gjson"
+	"github.com/google/uuid"
 	"github.com/tiendung1510/hmacutil"
 	"github.com/tiendung1510/rsautil"
 )
 
 var publicKey *rsa.PublicKey
-
-//var privateKey *rsa.PrivateKey
+var embeddata string
 
 func init() {
 	var err error
 
 	dir, _ := os.Getwd()
 	publicKey, err = rsautil.PublicKeyFromFile(dir + "/publickey.pem")
-	//privateKey, err := rsautil.PrivateKeyFromFile(dir + "/privatekey.pem")
 
 	if err != nil {
 		log.Fatal(err)
 	}
+
+	// Lấy ngrok public url sau khi chạy `ngrok http 1789`
+	publicURL := common.Ngrok.GetPublicURL()
+
+	log.Printf("[Public_url] %s", publicURL)
+
+	// Khi app 553 nhận callback data có chứa `embeddata.forward_callback`
+	// nó sẽ forward tiếp callback cho địa chỉ này
+	embeddataBytes, _ := json.Marshal(map[string]interface{}{
+		"forward_callback": publicURL + "/callback",
+	})
+
+	embeddata = string(embeddataBytes)
 }
 
-const (
-	CREATEORDER = "createorder"
-	GATEWAY     = "gateway"
-	QUICKPAY    = "quickpay"
-	HOST        = "http://localhost:1789"
-)
+type CallbackResponse struct {
+	Returncode    int    `json:"returncode"`
+	Returnmessage string `json:"returnmessage"`
+}
 
-func HandleCallback(cbdata map[string]string, hub *ws.Hub) map[string]interface{} {
+func VerifyCallback(cbdata map[string]string) CallbackResponse {
 	requestMac := cbdata["mac"]
 	data := cbdata["data"]
 
 	mac := hmacutil.HexStringEncode(hmacutil.SHA256, config.Get("key2"), data)
 
-	result := make(map[string]interface{})
+	result := CallbackResponse{}
 
 	if mac != requestMac {
-		result["returncode"] = -1
-		result["returnmessage"] = "mac not equal"
+		result.Returncode = -1
+		result.Returnmessage = "mac not equal"
 	} else {
-		result["returncode"] = 1
-		result["returnmessage"] = "success"
-
-		apptransid := gjson.Get(data, "apptransid").String()
-		cbdataStr, _ := json.Marshal(cbdata)
-		hub.Write(apptransid, string(cbdataStr))
-
-		go respository.OrderRespository.SaveOrder(data)
+		result.Returncode = 1
+		result.Returnmessage = "success"
 	}
 
 	return result
+}
+
+// Generate Apptransid in format: yyMMdd_appid_uuidv1
+func GenTransID() string {
+	now := time.Now()
+	yyMMdd := fmt.Sprintf("%02d%02d%02d", now.Year()%100, int(now.Month()), now.Day())
+	return fmt.Sprintf("%v_%v_%v", yyMMdd, config.Get("appid"), uuid.New().String())
 }
 
 func NewOrder(params map[string]string) map[string]string {
@@ -70,40 +80,41 @@ func NewOrder(params map[string]string) map[string]string {
 	order["description"] = params["description"]
 	order["appid"] = config.Get("appid")
 	order["appuser"] = "Demo"
-	order["embeddata"] = params["embeddata"]
+	order["embeddata"] = embeddata
 	order["item"] = ""
 	order["apptime"] = common.GetTimestamp().String()
-	order["apptransid"] = common.GenTransID()
+	order["apptransid"] = GenTransID()
 
 	return order
 }
 
-func CreateOrder(orderType string, params map[string]string) string {
-	endpoint := config.Get("api.createorder")
+func CreateOrder(params map[string]string) string {
 	order := NewOrder(params)
+	order["bankcode"] = "zalopayapp"
+	order["mac"] = common.Crypto.Mac.CreateOrder(order)
 
-	if orderType == GATEWAY || orderType == CREATEORDER {
-		order["mac"] = common.Crypto.Mac.CreateOrder(order)
+	result := common.Http.PostForm(config.Get("createorder"), order)
+	return common.JSON.Add(result, "apptransid", order["apptransid"])
+}
 
-		if orderType == GATEWAY {
-			orderJSON, _ := json.Marshal(order)
+func Gateway(params map[string]string) string {
+	order := NewOrder(params)
+	order["mac"] = common.Crypto.Mac.CreateOrder(order)
+	orderJSON, _ := json.Marshal(order)
 
-			return config.Get("api.gateway") + base64.RawURLEncoding.EncodeToString(orderJSON)
-		}
+	return config.Get("api.gateway") + base64.RawURLEncoding.EncodeToString(orderJSON)
+}
 
-		order["bankcode"] = "zalopayapp"
-	} else {
-		paymentcodeRaw := params["paymentcodeRaw"]
-		paymentcode, _ := rsautil.EncryptToBase64(publicKey, paymentcodeRaw)
+func QuickPay(params map[string]string) string {
+	paymentcodeRaw := params["paymentcodeRaw"]
+	paymentcode, _ := rsautil.EncryptToBase64(publicKey, paymentcodeRaw)
 
-		order["userip"] = "127.0.0.1"
-		order["paymentcode"] = paymentcode
-		order["mac"] = common.Crypto.Mac.QuickPay(order, paymentcodeRaw)
+	order := NewOrder(params)
+	order["userip"] = "127.0.0.1"
+	order["paymentcode"] = paymentcode
+	order["mac"] = common.Crypto.Mac.QuickPay(order, paymentcodeRaw)
 
-		endpoint = config.Get("api.quickpay")
-	}
-
-	result := common.Http.PostForm(endpoint, order)
+	result := common.Http.PostForm(config.Get("api.quickpay"), order)
 	return common.JSON.Add(result, "apptransid", order["apptransid"])
 }
 
@@ -123,7 +134,7 @@ func Refund(zptransid, amount, description string) string {
 	refundReq["amount"] = amount
 	refundReq["description"] = description
 	refundReq["timestamp"] = common.GetTimestamp().String()
-	refundReq["mrefundid"] = common.GenTransID()
+	refundReq["mrefundid"] = GenTransID()
 	refundReq["mac"] = common.Crypto.Mac.Refund(refundReq)
 
 	result := common.Http.PostForm(config.Get("api.refund"), refundReq)
