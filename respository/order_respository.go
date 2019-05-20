@@ -26,7 +26,7 @@ func (orderRespo *orderRespository) SaveOrder(data string) {
 			Zptransid:   gjson.Get(data, "zptransid").String(),
 			Description: gjson.Get(data, "description").String(),
 			Amount:      gjson.Get(data, "amount").Int(),
-			Timestamp:   gjson.Get(data, "apptime").Int(),
+			Timestamp:   gjson.Get(data, "servertime").Int(),
 			Channel:     gjson.Get(data, "channel").Int(),
 		})
 	})
