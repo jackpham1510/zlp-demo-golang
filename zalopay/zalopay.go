@@ -8,8 +8,8 @@ import (
 	"log"
 	"os"
 	"time"
-	"zlp-demo-golang/common"
 	"zlp-demo-golang/config"
+	"zlp-demo-golang/util"
 
 	"github.com/google/uuid"
 	"github.com/tiendung1510/hmacutil"
@@ -30,7 +30,7 @@ func init() {
 	}
 
 	// Lấy ngrok public url sau khi chạy `ngrok http 1789`
-	publicURL := common.Ngrok.GetPublicURL()
+	publicURL := util.Ngrok.GetPublicURL()
 
 	log.Printf("[Public_url] %s", publicURL)
 
@@ -82,7 +82,7 @@ func NewOrder(params map[string]string) map[string]string {
 	order["appuser"] = "Demo"
 	order["embeddata"] = embeddata
 	order["item"] = ""
-	order["apptime"] = common.GetTimestamp().String()
+	order["apptime"] = util.GetTimestamp().String()
 	order["apptransid"] = GenTransID()
 
 	return order
@@ -91,15 +91,15 @@ func NewOrder(params map[string]string) map[string]string {
 func CreateOrder(params map[string]string) string {
 	order := NewOrder(params)
 	order["bankcode"] = "zalopayapp"
-	order["mac"] = common.Crypto.Mac.CreateOrder(order)
+	order["mac"] = Crypto.Mac.CreateOrder(order)
 
-	result := common.Http.PostForm(config.Get("api.createorder"), order)
-	return common.JSON.Add(result, "apptransid", order["apptransid"])
+	result := util.Http.PostForm(config.Get("api.createorder"), order)
+	return util.JSON.Add(result, "apptransid", order["apptransid"])
 }
 
 func Gateway(params map[string]string) string {
 	order := NewOrder(params)
-	order["mac"] = common.Crypto.Mac.CreateOrder(order)
+	order["mac"] = Crypto.Mac.CreateOrder(order)
 	orderJSON, _ := json.Marshal(order)
 
 	return config.Get("api.gateway") + base64.RawURLEncoding.EncodeToString(orderJSON)
@@ -112,19 +112,19 @@ func QuickPay(params map[string]string) string {
 	order := NewOrder(params)
 	order["userip"] = "127.0.0.1"
 	order["paymentcode"] = paymentcode
-	order["mac"] = common.Crypto.Mac.QuickPay(order, paymentcodeRaw)
+	order["mac"] = Crypto.Mac.QuickPay(order, paymentcodeRaw)
 
-	result := common.Http.PostForm(config.Get("api.quickpay"), order)
-	return common.JSON.Add(result, "apptransid", order["apptransid"])
+	result := util.Http.PostForm(config.Get("api.quickpay"), order)
+	return util.JSON.Add(result, "apptransid", order["apptransid"])
 }
 
 func GetOrderStatus(apptransid string) string {
 	params := make(map[string]string)
 	params["appid"] = config.Get("appid")
 	params["apptransid"] = apptransid
-	params["mac"] = common.Crypto.Mac.GetOrderStatus(params)
+	params["mac"] = Crypto.Mac.GetOrderStatus(params)
 
-	return common.Http.PostForm(config.Get("api.getorderstatus"), params)
+	return util.Http.PostForm(config.Get("api.getorderstatus"), params)
 }
 
 func Refund(zptransid, amount, description string) string {
@@ -133,29 +133,29 @@ func Refund(zptransid, amount, description string) string {
 	refundReq["zptransid"] = zptransid
 	refundReq["amount"] = amount
 	refundReq["description"] = description
-	refundReq["timestamp"] = common.GetTimestamp().String()
+	refundReq["timestamp"] = util.GetTimestamp().String()
 	refundReq["mrefundid"] = GenTransID()
-	refundReq["mac"] = common.Crypto.Mac.Refund(refundReq)
+	refundReq["mac"] = Crypto.Mac.Refund(refundReq)
 
-	result := common.Http.PostForm(config.Get("api.refund"), refundReq)
-	return common.JSON.Add(result, "mrefundid", refundReq["mrefundid"])
+	result := util.Http.PostForm(config.Get("api.refund"), refundReq)
+	return util.JSON.Add(result, "mrefundid", refundReq["mrefundid"])
 }
 
 func GetRefundStatus(mrefundid string) string {
 	params := make(map[string]string)
 	params["appid"] = config.Get("appid")
 	params["mrefundid"] = mrefundid
-	params["timestamp"] = common.GetTimestamp().String()
-	params["mac"] = common.Crypto.Mac.GetRefundStatus(params)
+	params["timestamp"] = util.GetTimestamp().String()
+	params["mac"] = Crypto.Mac.GetRefundStatus(params)
 
-	return common.Http.PostForm(config.Get("api.getrefundstatus"), params)
+	return util.Http.PostForm(config.Get("api.getrefundstatus"), params)
 }
 
 func GetBankList() string {
 	params := make(map[string]string)
 	params["appid"] = config.Get("appid")
-	params["reqtime"] = common.GetTimestamp().String()
-	params["mac"] = common.Crypto.Mac.GetBankList(params)
+	params["reqtime"] = util.GetTimestamp().String()
+	params["mac"] = Crypto.Mac.GetBankList(params)
 
-	return common.Http.PostForm(config.Get("api.getbanklist"), params)
+	return util.Http.PostForm(config.Get("api.getbanklist"), params)
 }

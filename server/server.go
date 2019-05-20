@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
-	"zlp-demo-golang/common"
+	"zlp-demo-golang/util"
 )
 
 type Server struct {
@@ -34,7 +34,7 @@ func (sv *Server) withMiddlewares(handler HandlerFunc) http.HandlerFunc {
 			r.ParseForm()
 			requestData = r.Form
 		} else {
-			req.PostData = common.JSON.ParseReader(r.Body)
+			req.PostData = util.JSON.ParseReader(r.Body)
 			requestData = req.PostData
 		}
 

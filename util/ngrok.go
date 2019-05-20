@@ -1,21 +1,18 @@
-package common
+package util
 
 import (
 	"io/ioutil"
 	"log"
 	"net/http"
+	"zlp-demo-golang/config"
 
 	"github.com/tidwall/gjson"
 )
 
-type ngrok struct {
-	Tunnels string
-}
+type ngrok struct{}
 
 // Ngrok util
-var Ngrok = &ngrok{
-	Tunnels: "http://localhost:4040/api/tunnels",
-}
+var Ngrok = &ngrok{}
 
 func logError(err error) {
 	if err != nil {
@@ -25,7 +22,7 @@ func logError(err error) {
 
 func (ng *ngrok) GetPublicURL() string {
 	// Lấy thông tin ngrok
-	res, err := http.Get(ng.Tunnels)
+	res, err := http.Get(config.Get("ngrok.tunnels"))
 	logError(err)
 
 	body, err := ioutil.ReadAll(res.Body)

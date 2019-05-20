@@ -1,4 +1,4 @@
-package common
+package util
 
 import (
 	"encoding/json"
@@ -20,7 +20,7 @@ func (this *_json) ParseReader(body io.ReadCloser) map[string]string {
 
 	decoder := json.NewDecoder(body)
 	if err := decoder.Decode(&result); err != nil {
-		log.Println("[common.JSON.ParseReader]", err)
+		log.Println("[util.JSON.ParseReader]", err)
 	}
 
 	return result
@@ -30,7 +30,7 @@ func (this *_json) Parse(jsonStr string) map[string]interface{} {
 	var result map[string]interface{}
 
 	if err := json.Unmarshal([]byte(jsonStr), &result); err != nil {
-		log.Println("[common.JSON.parse]", err)
+		log.Println("[util.JSON.parse]", err)
 		return nil
 	}
 
