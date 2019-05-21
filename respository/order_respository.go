@@ -20,11 +20,11 @@ var OrderRespository = &orderRespository{}
 // SaveOrder save order to database
 func (orderRespo *orderRespository) SaveOrder(data string) {
 	provider.UseDB(func(db *gorm.DB) {
-
+		embeddata := gjson.Get(data, "embeddata").String()
 		db.Save(&models.Order{
 			Apptransid:  gjson.Get(data, "apptransid").String(),
 			Zptransid:   gjson.Get(data, "zptransid").String(),
-			Description: gjson.Get(data, "description").String(),
+			Description: gjson.Get(embeddata, "description").String(), // Nhúng description vào embeddata vì trong callback data không có trường này
 			Amount:      gjson.Get(data, "amount").Int(),
 			Timestamp:   gjson.Get(data, "servertime").Int(),
 			Channel:     gjson.Get(data, "channel").Int(),

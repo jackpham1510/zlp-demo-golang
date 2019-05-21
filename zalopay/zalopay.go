@@ -17,7 +17,7 @@ import (
 )
 
 var publicKey *rsa.PublicKey
-var embeddata string
+var publicURL string
 
 func init() {
 	var err error
@@ -30,17 +30,9 @@ func init() {
 	}
 
 	// Lấy ngrok public url sau khi chạy `ngrok http 1789`
-	publicURL := util.Ngrok.GetPublicURL()
+	publicURL = util.Ngrok.GetPublicURL()
 
 	log.Printf("[Public_url] %s", publicURL)
-
-	// Khi app 553 nhận callback data có chứa `embeddata.forward_callback`
-	// nó sẽ forward tiếp callback cho địa chỉ này
-	embeddataBytes, _ := json.Marshal(map[string]interface{}{
-		"forward_callback": publicURL + "/callback",
-	})
-
-	embeddata = string(embeddataBytes)
 }
 
 type CallbackResponse struct {
@@ -80,10 +72,16 @@ func NewOrder(params map[string]string) map[string]string {
 	order["description"] = params["description"]
 	order["appid"] = config.Get("appid")
 	order["appuser"] = "Demo"
-	order["embeddata"] = embeddata
 	order["item"] = ""
 	order["apptime"] = util.GetTimestamp().String()
 	order["apptransid"] = GenTransID()
+
+	embeddataBytes, _ := json.Marshal(map[string]interface{}{
+		"forward_callback": publicURL + "/callback", // Dùng để chuyển tiếp callback cho localhost thông qua ngrok public url
+		"description":      params["description"],   // Nhúng description vào embeddata vì trong callback data không có trường này
+	})
+
+	order["embeddata"] = string(embeddataBytes)
 
 	return order
 }
