@@ -1,10 +1,10 @@
 package models
 
 type Order struct {
-	Apptransid  string `gorm:"primary_key"`
-	Zptransid   string
-	Description string
-	Amount      int64
-	Timestamp   int64 // unix timestamp
-	Channel     int64
+	Apptransid  string `gorm:"primary_key" json:"apptransid"`
+	Zptransid   string `json:"zptransid"`
+	Description string `json:"description"`
+	Amount      int64  `json:"amount"`
+	Timestamp   int64  `json:"timestamp"`
+	Channel     int64  `json:"channel"`
 }

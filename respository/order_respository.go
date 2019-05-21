@@ -33,10 +33,10 @@ func (orderRespo *orderRespository) SaveOrder(data string) {
 }
 
 type PaginationResult struct {
-	CurrentPage  int
-	TotalOrder   int
-	OrderPerPage int
-	Orders       []models.Order
+	CurrentPage  int            `json:"currentPage"`
+	TotalOrder   int            `json:"totalOrder"`
+	OrderPerPage int            `json:"orderPerPage"`
+	Orders       []models.Order `json:"orders"`
 }
 
 // Paginate with page >= 0 (zero-based)
