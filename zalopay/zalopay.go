@@ -90,7 +90,6 @@ func NewOrder(params map[string]string) map[string]string {
 
 func CreateOrder(params map[string]string) string {
 	order := NewOrder(params)
-	order["bankcode"] = "zalopayapp"
 	order["mac"] = Crypto.Mac.CreateOrder(order)
 
 	result := util.Http.PostForm(config.Get("api.createorder"), order)
@@ -99,6 +98,7 @@ func CreateOrder(params map[string]string) string {
 
 func Gateway(params map[string]string) string {
 	order := NewOrder(params)
+	order["bankcode"] = params["bankcode"]
 	order["mac"] = Crypto.Mac.CreateOrder(order)
 	orderJSON, _ := json.Marshal(order)
 
