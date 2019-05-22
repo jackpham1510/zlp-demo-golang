@@ -9,7 +9,7 @@ import (
 
 func InitModels() {
 	err := provider.UseDB(func(db *gorm.DB) {
-		db.DropTableIfExists(&Order{})
+		// db.DropTableIfExists(&Order{})
 		db.AutoMigrate(&Order{})
 	})
 
