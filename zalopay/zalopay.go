@@ -11,13 +11,13 @@ import (
 	"zlp-demo-golang/config"
 	"zlp-demo-golang/util"
 
-	"github.com/google/uuid"
 	"github.com/tiendung1510/hmacutil"
 	"github.com/tiendung1510/rsautil"
 )
 
 var publicKey *rsa.PublicKey
 var publicURL string
+var uid = util.GetTimestamp().Int()
 
 func init() {
 	var err error
@@ -59,11 +59,12 @@ func VerifyCallback(cbdata map[string]string) CallbackResponse {
 	return result
 }
 
-// Generate Apptransid in format: yyMMdd_appid_uuidv1
+// GenTransID in format: yyMMdd_appid_xxxx
 func GenTransID() string {
+	uid = uid + 1
 	now := time.Now()
 	yyMMdd := fmt.Sprintf("%02d%02d%02d", now.Year()%100, int(now.Month()), now.Day())
-	return fmt.Sprintf("%v_%v_%v", yyMMdd, config.Get("appid"), uuid.New().String())
+	return fmt.Sprintf("%v_%v_%v", yyMMdd, config.Get("appid"), uid)
 }
 
 func NewOrder(params map[string]string) map[string]string {
